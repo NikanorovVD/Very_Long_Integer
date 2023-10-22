@@ -9,9 +9,39 @@ string multiply(string a, string b);
 string sum(string a, string s, int pos);
 string add(string s, int pos);
 void print_longint(unsigned int* buff);
+string substract(string a, string b, bool& res);
+void ToBin(string s, bool* res);
+void ToInt(bool* res, unsigned int* result);
 
 int main(int argc, char* argv[])
 {
+    string s = "12345678999827341230"; reverse(s.begin(), s.end());
+    bool r[128];
+
+    ToBin(s, r); 
+    for (int i = 0; i < 128; i++)
+        cout << r[i];
+    cout << endl;
+
+    unsigned int* result = (unsigned int*)malloc(16);
+    ToInt(r, result);
+
+
+    for (int i = 0; i < 4; i++)
+        cout << result[i]<<endl;
+    print_longint(result);
+
+  /* string a = "123"; reverse(a.begin(), a.end());
+    string b = "122";  reverse(b.begin(), b.end());
+    bool r = true;
+    bool& p = r;
+    string s = substract(a, b, p); reverse(s.begin(), s.end());
+    cout << r << endl;
+    cout << s << endl;*/
+    //unsigned int* buff1 = divide(a);
+    //reverse(buff1, buff1 + 4);
+    //print_longint(buff1);
+
     int ProcRank, ProcNum;
     MPI_Status Status;
 
@@ -86,7 +116,7 @@ string sum(string a, string s, int pos) {
     for (size_t i = 0; i < a.length(); i++) {
         int x = a[i] - '0';
         if (pos + i >= s.length()) {
-            s = s + "00";
+            s = s + "000";
         }
         int y = s[pos + i] - '0';
 
@@ -119,9 +149,15 @@ string add(string s, int pos) {
 
 void print_longint(unsigned int* buff) {
     string S_0 = "1";
-    string S_1 = "65536";           reverse(S_1.begin(), S_1.end());
-    string S_2 = "4294967296";      reverse(S_2.begin(), S_2.end());
-    string S_3 = "281474976710656"; reverse(S_3.begin(), S_3.end());
+    string S_1 = "4294967296";                    reverse(S_1.begin(), S_1.end());
+    string S_2 = "18446744073709551616";          reverse(S_2.begin(), S_2.end());
+    string S_3 = "79228162514264337593543950336"; reverse(S_3.begin(), S_3.end());
+
+
+    //a = 12354;
+    //b = 6848;
+    //c = 3000;
+    //d = 2500;
 
     unsigned int a = buff[0];
     unsigned int b = buff[1];
@@ -148,3 +184,108 @@ void print_longint(unsigned int* buff) {
     reverse(result.begin(), result.end());
     cout << result << endl;
 }
+
+string substract(string a, string b, bool& res) { 
+//a - уменьшаемое
+//b - уменьшаемое
+//возвращает возможно ли вычесть
+bool borrow = false; //занимаем ли 10 из след. разряда
+string rasnost = "";
+    if (a.length() < b.length()) {
+        res = false;
+        return "";
+    }
+    size_t i = 0;
+    while ((i < b.length()) || borrow) {
+        if (i >= a.length()) {
+            res = false;
+            return "";
+        }
+        int x = a[i] - '0';
+        int y;
+        if (i < b.length()) {
+            y = b[i] - '0';
+        }
+        else y = 0;
+        
+
+        if (borrow) x -= 1;
+        if (x < y) {
+            x += 10;
+            borrow = true;
+        }
+        else borrow = false;
+
+        int r = x - y;
+        rasnost += to_string(r);
+        i++;
+    }
+    res = true;
+    return rasnost;
+}
+
+void ToBin(string s, bool* res) {
+    string b[128];
+    b[127] = "1";
+    for (int i = 126; i >=0; i--) {
+        b[i] = multiply(b[i + 1], "2");
+    }
+
+    //for (int i = 0; i < 128; i++) {
+        //reverse(b[i].begin(), b[i].end());
+    //}
+
+    for (int i = 0; i < 128; i++) {
+        bool can_substract;
+        bool& p = can_substract;
+        string temp = substract(s, b[i], p);
+        if (can_substract) {
+            res[i] = true;
+            s = temp;
+        }
+        else {
+            res[i] = false;
+        }
+    }
+
+}
+
+unsigned int* divide(string delimoe) {
+    unsigned long delitel = UINT32_MAX;
+    unsigned int* result = (unsigned int*)malloc(16);
+    for (int i = 0; i < 16; i++) {
+        result[i] = 0;
+    }
+    int k = 0;
+    string temp;
+    while (true) {
+        if (delimoe.length() < 10) { result[k] = stoull(delimoe); return result; }
+        temp = delimoe.substr(0,10);
+        delimoe = delimoe.substr(10, delimoe.length() - 10);
+        unsigned long temp_int = stoull(temp);
+        if (temp_int < delitel) {
+            temp += delimoe[0];
+            temp_int = stoull(temp);
+            delimoe = delimoe.substr(1, delimoe.length() - 1);
+        }
+        unsigned int ostatok = temp_int % delitel;
+        result[k] = ostatok;
+        k++;
+    }
+}
+
+void ToInt(bool* bin, unsigned int* result) {
+    
+    for (int i = 0; i < 4; i++) {
+        result[i] = 0;
+    }
+
+    reverse(bin, bin + 128);
+    
+    for (int k = 0; k < 4; k++) {
+        for (int i = k*32; i < (k+1)*32; i++) {
+            result[k] += bin[i] * powl(2, i%32);
+        }
+    }
+}
+
