@@ -45,8 +45,8 @@ int main(int argc, char* argv[])
     if (ProcRank == 0) {
         a = 12354;
         b = 6848;
-        c = 30;
-        d = 0;
+        c = 3000;
+        d = 2500;
 
         MPI_Pack(&a, 1, MPI_UNSIGNED, buff, size, &a_pos, MPI_COMM_WORLD);
         MPI_Pack(&b, 1, MPI_UNSIGNED, buff, size, &b_pos, MPI_COMM_WORLD);
@@ -86,7 +86,7 @@ string sum(string a, string s, int pos) {
     for (size_t i = 0; i < a.length(); i++) {
         int x = a[i] - '0';
         if (pos + i >= s.length()) {
-            s = s + '0';
+            s = s + "00";
         }
         int y = s[pos + i] - '0';
 
