@@ -13,9 +13,11 @@ string substract(string a, string b, bool& res);
 bool* ToBin(string s);
 unsigned int* ToInt(bool* bin);
 unsigned int* StringToLongint(string s);
+string trim_zeros(string s);
 
 int main(int argc, char* argv[])
 {
+
     int ProcRank, ProcNum;
     MPI_Status Status;
 
@@ -41,7 +43,7 @@ int main(int argc, char* argv[])
 
 
     if (ProcRank == 0) {
-        string s = "12345678999827341230";
+        string s = "123456789012345678901234567890";
         unsigned int* result = StringToLongint(s);
 
 
@@ -50,6 +52,8 @@ int main(int argc, char* argv[])
         MPI_Pack(&result[2], 1, MPI_UNSIGNED, buff, size, &c_pos, MPI_COMM_WORLD);
         MPI_Pack(&result[3], 1, MPI_UNSIGNED, buff, size, &d_pos, MPI_COMM_WORLD);
 
+
+        print_longint(buff);
         for (int i = 1; i < ProcNum; i++)
             MPI_Send(buff, 1, longint, i, 0, MPI_COMM_WORLD);
     }
@@ -83,7 +87,10 @@ string sum(string a, string s, int pos) {
     for (size_t i = 0; i < a.length(); i++) {
         int x = a[i] - '0';
         if (pos + i >= s.length()) {
-            s = s + "000";
+            int k_zeros = pos + i - s.length();
+            for (int k = 0; k <= k_zeros; k++) {
+                s += '0';
+            }
         }
         int y = s[pos + i] - '0';
 
@@ -106,7 +113,7 @@ string add(string s, int pos) {
     int x = s[pos] - '0';
     if (s[pos] == '9') {
         s[pos] = '0';
-        add(s, pos + 1);
+        s = add(s, pos + 1);
     }
     else {
         s[pos] ++;
@@ -115,11 +122,11 @@ string add(string s, int pos) {
 }
 
 string substract(string a, string b, bool& res) {
-    //a - уменьшаемое
-    //b - вычитаемое
-    //возвращает возможно ли вычесть
-    bool borrow = false; //занимаем ли 10 из след. разряда
+
+    bool borrow = false;
     string rasnost = "";
+    a = trim_zeros(a);
+    b = trim_zeros(b);
     if (a.length() < b.length()) {
         res = false;
         return "";
@@ -151,6 +158,19 @@ string substract(string a, string b, bool& res) {
     }
     res = true;
     return rasnost;
+}
+
+string trim_zeros(string s) {
+    string new_s;
+    if ((s == "0") || (s == "") || (s == "00") || (s == "000")) return s;
+
+    int i = s.length();
+    do {
+        i--;
+    } while (s[i] == '0');
+
+    new_s = s.substr(0, i + 1);
+    return new_s;
 }
 
 bool* ToBin(string s) {
