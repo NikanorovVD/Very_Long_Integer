@@ -5,16 +5,32 @@
 
 using namespace std;
 
+class LongInt;
 string multiply(string a, string b);
 string sum(string a, string s, int pos);
 string add(string s, int pos);
-void print_longint(unsigned int* buff, int size);
+void print_longint(LongInt x);
 string substract(string a, string b, bool& res);
-bool* ToBin(string s, int size);
-unsigned int* ToInt(bool* bin, int size);
-unsigned int* StringToLongint(string s, int& size);
-int GetLongintSize(string s);
+
+bool* ToBin(string s, unsigned short size);
+unsigned int* ToInt(bool* bin, unsigned short size);
+
+unsigned int* StringToLongint(string s, unsigned short& size);
+unsigned short GetLongintSize(string s);
 string trim_zeros(string s);
+
+
+class LongInt {
+public:
+    unsigned int* n;
+    unsigned short size;
+
+public:
+    LongInt(string s) {
+        unsigned short& r = this->size;
+        n = StringToLongint(s, size);
+    }
+};
 
 int main(int argc, char* argv[])
 {
@@ -25,27 +41,12 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
     MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 
-    MPI_Datatype longint;
-    MPI_Type_contiguous(4, MPI_UNSIGNED, &longint);
-    MPI_Type_commit(&longint);
-
-    int size;
-    MPI_Pack_size(4, MPI_UNSIGNED, MPI_COMM_WORLD, &size);
-
-    unsigned int* buff = (unsigned int*)malloc(size);
-    unsigned int* buff1 = (unsigned int*)malloc(size);
-
     if (ProcRank == 0) {
         string s = "12345678901234567890123456789012345678901234567890123456789012345678901234567890";
-        int size;
-        int& r = size;
-        unsigned int* result = StringToLongint(s, r);
+        LongInt x = LongInt(s);
 
-        print_longint(result, size);
-        for (int i = 1; i < ProcNum; i++)
-            MPI_Send(buff, 1, longint, i, 0, MPI_COMM_WORLD);
+        print_longint(x);
     }
-
     MPI_Finalize();
 }
 
@@ -156,7 +157,7 @@ string trim_zeros(string s) {
     return new_s;
 }
 
-bool* ToBin(string s, int size) {
+bool* ToBin(string s, unsigned short size) {
     bool* res = (bool*)malloc(32 * size);
     string* b = new string[32 * size];
     b[32 * size - 1] = "1";
@@ -179,7 +180,7 @@ bool* ToBin(string s, int size) {
     return res;
 }
 
-unsigned int* ToInt(bool* bin, int size) {
+unsigned int* ToInt(bool* bin, unsigned short size) {
     unsigned int* result = (unsigned int*)malloc(4 * size);
     for (int i = 0; i < size; i++) {
         result[i] = 0;
@@ -193,7 +194,7 @@ unsigned int* ToInt(bool* bin, int size) {
     return result;
 }
 
-unsigned int* StringToLongint(string s, int& size) {
+unsigned int* StringToLongint(string s, unsigned short& size) {
     reverse(s.begin(), s.end());
     size = GetLongintSize(s);
     bool* r = ToBin(s, size);
@@ -201,10 +202,10 @@ unsigned int* StringToLongint(string s, int& size) {
     return result;
 }
 
-int GetLongintSize(string s) {
+unsigned short GetLongintSize(string s) {
     string int_max = "4294967296";   reverse(int_max.begin(), int_max.end());
     string current_max = "4294967296";   reverse(current_max.begin(), current_max.end());
-    int size = 0;
+    unsigned short size = 0;
     bool can_substract = true;
     bool& p = can_substract;
     while (can_substract) {
@@ -214,19 +215,20 @@ int GetLongintSize(string s) {
         size++;
     }
     cout << "size = " << size << endl;
+
     return size;
+
 }
 
-void print_longint(unsigned int* buff, int size) {
+void print_longint(LongInt x) {
     string int_max = "4294967296";       reverse(int_max.begin(), int_max.end());
     string current_max = "1";
 
-
-    string* str_numbers = new string[size];
+    string* str_numbers = new string[x.size];
     string result = "0";
 
-    for (int i = 0; i < size; i++) {
-        str_numbers[i] = to_string(buff[i]);
+    for (int i = 0; i < x.size; i++) {
+        str_numbers[i] = to_string(x.n[i]);
         reverse(str_numbers[i].begin(), str_numbers[i].end());
 
         str_numbers[i] = multiply(str_numbers[i], current_max);
