@@ -8,19 +8,18 @@ using namespace std;
 string multiply(string a, string b);
 string sum(string a, string s, int pos);
 string add(string s, int pos);
-void print_longint(unsigned int* buff);
+void print_longint(unsigned int* buff, int size);
 string substract(string a, string b, bool& res);
-bool* ToBin(string s);
-unsigned int* ToInt(bool* bin);
-unsigned int* StringToLongint(string s);
+bool* ToBin(string s, int size);
+unsigned int* ToInt(bool* bin, int size);
+unsigned int* StringToLongint(string s, int& size);
+int GetLongintSize(string s);
 string trim_zeros(string s);
 
 int main(int argc, char* argv[])
 {
-
     int ProcRank, ProcNum;
     MPI_Status Status;
-
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
@@ -36,34 +35,18 @@ int main(int argc, char* argv[])
     unsigned int* buff = (unsigned int*)malloc(size);
     unsigned int* buff1 = (unsigned int*)malloc(size);
 
-    int a_pos = 0;
-    int b_pos = 4;
-    int c_pos = 8;
-    int d_pos = 12;
-
-
     if (ProcRank == 0) {
-        string s = "123456789012345678901234567890";
-        unsigned int* result = StringToLongint(s);
+        string s = "12345678901234567890123456789012345678901234567890123456789012345678901234567890";
+        int size;
+        int& r = size;
+        unsigned int* result = StringToLongint(s, r);
 
-
-        MPI_Pack(&result[0], 1, MPI_UNSIGNED, buff, size, &a_pos, MPI_COMM_WORLD);
-        MPI_Pack(&result[1], 1, MPI_UNSIGNED, buff, size, &b_pos, MPI_COMM_WORLD);
-        MPI_Pack(&result[2], 1, MPI_UNSIGNED, buff, size, &c_pos, MPI_COMM_WORLD);
-        MPI_Pack(&result[3], 1, MPI_UNSIGNED, buff, size, &d_pos, MPI_COMM_WORLD);
-
-
-        print_longint(buff);
+        print_longint(result, size);
         for (int i = 1; i < ProcNum; i++)
             MPI_Send(buff, 1, longint, i, 0, MPI_COMM_WORLD);
     }
 
-    if (ProcRank != 0) {
-        MPI_Recv(buff1, 1, longint, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &Status);
-        print_longint(buff1);
-    }
     MPI_Finalize();
-
 }
 
 string multiply(string a, string b) {
@@ -162,7 +145,7 @@ string substract(string a, string b, bool& res) {
 
 string trim_zeros(string s) {
     string new_s;
-    if ((s == "0") || (s == "") || (s == "00") || (s == "000")) return s;
+    if ((s == "0") || (s == "") || (s == "00") || (s == "000")) return "0";
 
     int i = s.length();
     do {
@@ -173,15 +156,15 @@ string trim_zeros(string s) {
     return new_s;
 }
 
-bool* ToBin(string s) {
-    bool* res = (bool*)malloc(128);
-    string b[128];
-    b[127] = "1";
-    for (int i = 126; i >= 0; i--) {
+bool* ToBin(string s, int size) {
+    bool* res = (bool*)malloc(32 * size);
+    string* b = new string[32 * size];
+    b[32 * size - 1] = "1";
+    for (int i = 32 * size - 2; i >= 0; i--) {
         b[i] = multiply(b[i + 1], "2");
     }
 
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < 32 * size; i++) {
         bool can_substract;
         bool& p = can_substract;
         string temp = substract(s, b[i], p);
@@ -196,13 +179,13 @@ bool* ToBin(string s) {
     return res;
 }
 
-unsigned int* ToInt(bool* bin) {
-    unsigned int* result = (unsigned int*)malloc(16);
-    for (int i = 0; i < 4; i++) {
+unsigned int* ToInt(bool* bin, int size) {
+    unsigned int* result = (unsigned int*)malloc(4 * size);
+    for (int i = 0; i < size; i++) {
         result[i] = 0;
     }
-    reverse(bin, bin + 128);
-    for (int k = 0; k < 4; k++) {
+    reverse(bin, bin + 32 * size);
+    for (int k = 0; k < size; k++) {
         for (int i = k * 32; i < (k + 1) * 32; i++) {
             result[k] += bin[i] * powl(2, i % 32);
         }
@@ -210,40 +193,47 @@ unsigned int* ToInt(bool* bin) {
     return result;
 }
 
-unsigned int* StringToLongint(string s) {
+unsigned int* StringToLongint(string s, int& size) {
     reverse(s.begin(), s.end());
-    bool* r = ToBin(s);
-    unsigned int* result = ToInt(r);
+    size = GetLongintSize(s);
+    bool* r = ToBin(s, size);
+    unsigned int* result = ToInt(r, size);
     return result;
 }
 
-void print_longint(unsigned int* buff) {
-    string S_0 = "1";
-    string S_1 = "4294967296";                    reverse(S_1.begin(), S_1.end());
-    string S_2 = "18446744073709551616";          reverse(S_2.begin(), S_2.end());
-    string S_3 = "79228162514264337593543950336"; reverse(S_3.begin(), S_3.end());
+int GetLongintSize(string s) {
+    string int_max = "4294967296";   reverse(int_max.begin(), int_max.end());
+    string current_max = "4294967296";   reverse(current_max.begin(), current_max.end());
+    int size = 0;
+    bool can_substract = true;
+    bool& p = can_substract;
+    while (can_substract) {
+        substract(s, current_max, p);
+        current_max = multiply(current_max, int_max);
 
-    unsigned int a = buff[0];
-    unsigned int b = buff[1];
-    unsigned int c = buff[2];
-    unsigned int d = buff[3];
+        size++;
+    }
+    cout << "size = " << size << endl;
+    return size;
+}
 
-    string as = to_string(a); reverse(as.begin(), as.end());
-    string bs = to_string(b); reverse(bs.begin(), bs.end());
-    string cs = to_string(c); reverse(cs.begin(), cs.end());
-    string ds = to_string(d); reverse(ds.begin(), ds.end());
+void print_longint(unsigned int* buff, int size) {
+    string int_max = "4294967296";       reverse(int_max.begin(), int_max.end());
+    string current_max = "1";
 
 
+    string* str_numbers = new string[size];
     string result = "0";
-    S_0 = multiply(S_0, as);
-    S_1 = multiply(S_1, bs);
-    S_2 = multiply(S_2, cs);
-    S_3 = multiply(S_3, ds);
 
-    result = sum(S_0, result, 0);
-    result = sum(S_1, result, 0);
-    result = sum(S_2, result, 0);
-    result = sum(S_3, result, 0);
+    for (int i = 0; i < size; i++) {
+        str_numbers[i] = to_string(buff[i]);
+        reverse(str_numbers[i].begin(), str_numbers[i].end());
+
+        str_numbers[i] = multiply(str_numbers[i], current_max);
+        result = sum(str_numbers[i], result, 0);
+
+        current_max = multiply(current_max, int_max);
+    }
 
     reverse(result.begin(), result.end());
     cout << result << endl;
