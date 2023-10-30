@@ -20,17 +20,62 @@ unsigned short GetLongintSize(string s);
 string trim_zeros(string s);
 
 
+
 class LongInt {
 public:
     unsigned int* n;
     unsigned short size;
 
+private:
+    LongInt(unsigned short s) {
+        n = (unsigned int*)calloc(s, 32);
+        size = s;
+    }
+
+    void Add(uint64_t x, int pos) {
+        uint64_t int_max = (uint64_t)UINT32_MAX + (uint64_t)1;
+
+        uint64_t y = this->n[pos];
+        uint64_t xy = x + y;
+        this->n[pos] = xy % int_max;
+        if (xy / int_max != 0) this->Add(xy / int_max, pos + 1);
+    }
+
 public:
+
     LongInt(string s) {
         unsigned short& r = this->size;
         n = StringToLongint(s, size);
     }
+
+    LongInt operator * (const LongInt& a) {
+        LongInt s = LongInt(a.size + this->size);
+        uint64_t int_max = (uint64_t)UINT32_MAX + (uint64_t)1;
+        for (size_t i = 0; i < a.size; i++) {
+            for (size_t j = 0; j < this->size; j++) {
+                uint64_t x = a.n[i];
+                uint64_t y = this->n[j];
+                uint64_t xy = x * y;
+
+
+                int pos = i + j;
+                s.Add(xy % int_max, pos);
+                if (xy / int_max != 0) s.Add(xy / int_max, pos + 1);
+            }
+        }
+        return s;
+    }
+
+
+
 };
+ostream& operator<<(std::ostream& stream, const LongInt& x)
+{
+    for (int i = 0; i < x.size; i++)
+        stream << x.n[i] << '\t';
+    return stream;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -42,10 +87,18 @@ int main(int argc, char* argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 
     if (ProcRank == 0) {
-        string s = "12345678901234567890123456789012345678901234567890123456789012345678901234567890";
-        LongInt x = LongInt(s);
+        string s1 = "3000000000000000000000000000000000000000000000000000000";
+        string s2 = "4000000000000000000000000000000000000000000000000000000";
+
+        LongInt x = LongInt(s1);
+        LongInt y = LongInt(s2);
+
+        LongInt xy = x * y;
 
         print_longint(x);
+        print_longint(y);
+        cout << "RESULT :   ";
+        print_longint(xy);
     }
     MPI_Finalize();
 }
@@ -146,16 +199,20 @@ string substract(string a, string b, bool& res) {
 
 string trim_zeros(string s) {
     string new_s;
-    if ((s == "0") || (s == "") || (s == "00") || (s == "000")) return "0";
+    //if ((s == "0") || (s == "") || (s == "00") || (s == "000")|| (s == "0000")||(s == "00000")) return "0";
 
     int i = s.length();
     do {
+        if ((i == 0) && (s[i] == '0')) return "0";
         i--;
+
     } while (s[i] == '0');
 
     new_s = s.substr(0, i + 1);
     return new_s;
 }
+
+
 
 bool* ToBin(string s, unsigned short size) {
     bool* res = (bool*)malloc(32 * size);
@@ -221,6 +278,7 @@ unsigned short GetLongintSize(string s) {
 }
 
 void print_longint(LongInt x) {
+    cout << x << endl;
     string int_max = "4294967296";       reverse(int_max.begin(), int_max.end());
     string current_max = "1";
 
