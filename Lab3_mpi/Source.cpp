@@ -42,6 +42,10 @@ private:
     }
 
 public:
+    LongInt() {
+        size = 0;
+        n = nullptr;
+    }
 
     LongInt(string s) {
         unsigned short& r = this->size;
@@ -79,6 +83,8 @@ ostream& operator<<(std::ostream& stream, const LongInt& x)
 
 int main(int argc, char* argv[])
 {
+    int N;
+    int max_len = 0;
     int ProcRank, ProcNum;
     MPI_Status Status;
 
@@ -86,20 +92,86 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
     MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 
+
+
+    string* s = new string[0];
+    LongInt* numbers = new LongInt[0];
+
     if (ProcRank == 0) {
-        string s1 = "3000000000000000000000000000000000000000000000000000000";
-        string s2 = "4000000000000000000000000000000000000000000000000000000";
 
-        LongInt x = LongInt(s1);
-        LongInt y = LongInt(s2);
-
-        LongInt xy = x * y;
-
-        print_longint(x);
-        print_longint(y);
-        cout << "RESULT :   ";
-        print_longint(xy);
+        N = 9;
+        string* s = new string[N]{
+            "3000000000000000000000000000000000000000000000000000000" ,
+            "4000000000000000000000000000000000000000000000000000000",
+            "123","456","123456789","99999999999999",
+            "7878878787878787","88888888888888888","77777777777777777777"
+        };
+        numbers = new LongInt[N];
+        for (int i = 0; i < N; i++) {
+            numbers[i] = LongInt(s[i]);
+            cout << numbers[i] << endl;
+            print_longint(numbers[i]);
+            max_len += numbers[i].size;
+        }
     }
+
+    MPI_Bcast(&N, 1, MPI_INT32_T, 0, MPI_COMM_WORLD);
+    //cout << "I have N = " << N << endl;
+
+    MPI_Bcast(&max_len, 1, MPI_INT32_T, 0, MPI_COMM_WORLD);
+    //cout << "I have max_len = " << max_len << endl;
+
+    int numbers_on_proc = N / ProcNum;
+    if (N % ProcNum != 0) numbers_on_proc++;
+    //cout << "I have n / proc = " << numbers_on_proc << endl;
+
+
+
+    MPI_Datatype MPI_LONGINT_T;
+    MPI_Type_contiguous(max_len, MPI_UINT32_T, &MPI_LONGINT_T);
+    MPI_Type_commit(&MPI_LONGINT_T);
+
+    int type_size;
+    MPI_Pack_size(1, MPI_LONGINT_T, MPI_COMM_WORLD, &type_size);
+    //cout << "SIZE = " << type_size << endl;
+
+    unsigned int* recv_nums = (unsigned int*)calloc(numbers_on_proc, type_size);
+    unsigned int* send_nums = nullptr;
+    if (ProcRank == 0) {
+        for (int k = 0; k < ProcNum; k++) {
+            send_nums = (unsigned int*)calloc(N, type_size);
+
+            int pos = 0;
+            for (int i = 0; i < N; i++) {
+                //cout << " i = " << i << endl;
+                pos = type_size * i;
+                //cout << "pos = " << pos << endl;
+                MPI_Pack(numbers[i].n, numbers[i].size, MPI_UINT32_T, send_nums, N * type_size, &pos, MPI_COMM_WORLD);
+            }
+        }
+    }
+
+    MPI_Scatter(send_nums, numbers_on_proc, MPI_LONGINT_T, recv_nums, numbers_on_proc, MPI_LONGINT_T, 0, MPI_COMM_WORLD);
+
+
+    if (ProcRank == 0) {
+        free(send_nums);
+    }
+
+    cout << "NUMS FOR " << ProcRank << " PROCESS :" << endl;
+    for (int i = 0; i < numbers_on_proc * type_size / sizeof(unsigned int); i++) {
+        cout << recv_nums[i] << '\t';
+        if ((i + 1) % (type_size / sizeof(unsigned int)) == 0) cout << endl;
+    }cout << endl;
+
+
+    if (ProcRank == 0) {
+        for (int i = 0; i < N; i++) {
+            free(numbers[i].n);
+        }
+    }
+    delete[] s;
+
     MPI_Finalize();
 }
 
@@ -199,7 +271,7 @@ string substract(string a, string b, bool& res) {
 
 string trim_zeros(string s) {
     string new_s;
-    //if ((s == "0") || (s == "") || (s == "00") || (s == "000")|| (s == "0000")||(s == "00000")) return "0";
+
 
     int i = s.length();
     do {
@@ -234,6 +306,8 @@ bool* ToBin(string s, unsigned short size) {
             res[i] = false;
         }
     }
+
+    delete[] b;
     return res;
 }
 
@@ -256,6 +330,8 @@ unsigned int* StringToLongint(string s, unsigned short& size) {
     size = GetLongintSize(s);
     bool* r = ToBin(s, size);
     unsigned int* result = ToInt(r, size);
+
+    free(r);
     return result;
 }
 
@@ -271,14 +347,10 @@ unsigned short GetLongintSize(string s) {
 
         size++;
     }
-    cout << "size = " << size << endl;
-
     return size;
-
 }
 
 void print_longint(LongInt x) {
-    cout << x << endl;
     string int_max = "4294967296";       reverse(int_max.begin(), int_max.end());
     string current_max = "1";
 
@@ -294,6 +366,8 @@ void print_longint(LongInt x) {
 
         current_max = multiply(current_max, int_max);
     }
+
+    delete[] str_numbers;
 
     reverse(result.begin(), result.end());
     cout << result << endl;
