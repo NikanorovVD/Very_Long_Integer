@@ -2,6 +2,7 @@
 #include <string>
 #include <iostream>
 #include "mpi.h"
+#define DEBUG_OUTPUT(X) X
 
 using namespace std;
 
@@ -18,6 +19,7 @@ unsigned int* ToInt(bool* bin, unsigned short size);
 unsigned int* StringToLongint(string s, unsigned short& size);
 unsigned short GetLongintSize(string s);
 string trim_zeros(string s);
+ostream& operator<<(std::ostream& stream, const LongInt& x);
 
 
 
@@ -47,6 +49,16 @@ public:
         n = nullptr;
     }
 
+    LongInt(unsigned int* buff, int k) {
+        do k--; while (buff[k] == 0);
+        k++;
+        n = (unsigned int*)calloc(k, sizeof(unsigned int));
+        for (int i = 0; i < k; i++) {
+            n[i] = buff[i];
+        }
+        size = k;
+    }
+
     LongInt(string s) {
         unsigned short& r = this->size;
         n = StringToLongint(s, size);
@@ -69,9 +81,6 @@ public:
         }
         return s;
     }
-
-
-
 };
 ostream& operator<<(std::ostream& stream, const LongInt& x)
 {
@@ -92,11 +101,11 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &ProcRank);
     MPI_Comm_size(MPI_COMM_WORLD, &ProcNum);
 
-
-
     string* s = new string[0];
     LongInt* numbers = new LongInt[0];
 
+
+    //Входные данные
     if (ProcRank == 0) {
 
         N = 9;
@@ -109,12 +118,19 @@ int main(int argc, char* argv[])
         numbers = new LongInt[N];
         for (int i = 0; i < N; i++) {
             numbers[i] = LongInt(s[i]);
-            cout << numbers[i] << endl;
+
+            DEBUG_OUTPUT
+            (cout << "SIZE : " << numbers[i].size << endl;
+            cout << "INT : " << numbers[i] << endl;
+            cout << "DEC : ";
             print_longint(numbers[i]);
-            max_len += numbers[i].size;
+            cout << endl;)
+
+                max_len += numbers[i].size;
         }
     }
 
+    //Рассылка переменных
     MPI_Bcast(&N, 1, MPI_INT32_T, 0, MPI_COMM_WORLD);
     //cout << "I have N = " << N << endl;
 
@@ -126,7 +142,7 @@ int main(int argc, char* argv[])
     //cout << "I have n / proc = " << numbers_on_proc << endl;
 
 
-
+    //Создаём тип данных MPI
     MPI_Datatype MPI_LONGINT_T;
     MPI_Type_contiguous(max_len, MPI_UINT32_T, &MPI_LONGINT_T);
     MPI_Type_commit(&MPI_LONGINT_T);
@@ -135,6 +151,10 @@ int main(int argc, char* argv[])
     MPI_Pack_size(1, MPI_LONGINT_T, MPI_COMM_WORLD, &type_size);
     //cout << "SIZE = " << type_size << endl;
 
+    int ints_in_type = type_size / sizeof(unsigned int);
+
+
+    //Распределение чисел по процессам
     unsigned int* recv_nums = (unsigned int*)calloc(numbers_on_proc, type_size);
     unsigned int* send_nums = nullptr;
     if (ProcRank == 0) {
@@ -143,8 +163,8 @@ int main(int argc, char* argv[])
 
             int pos = 0;
             for (int i = 0; i < N; i++) {
-                //cout << " i = " << i << endl;
-                pos = type_size * i;
+                DEBUG_OUTPUT(cout << " i = " << i << endl;)
+                    pos = type_size * i;
                 //cout << "pos = " << pos << endl;
                 MPI_Pack(numbers[i].n, numbers[i].size, MPI_UINT32_T, send_nums, N * type_size, &pos, MPI_COMM_WORLD);
             }
@@ -158,18 +178,40 @@ int main(int argc, char* argv[])
         free(send_nums);
     }
 
-    cout << "NUMS FOR " << ProcRank << " PROCESS :" << endl;
+    //Обработка полученных чисел
+    DEBUG_OUTPUT
+    (cout << "RECV NUMS FOR " << ProcRank << " PROCESS :" << endl;
     for (int i = 0; i < numbers_on_proc * type_size / sizeof(unsigned int); i++) {
         cout << recv_nums[i] << '\t';
         if ((i + 1) % (type_size / sizeof(unsigned int)) == 0) cout << endl;
-    }cout << endl;
+    }cout << endl;)
 
+    LongInt* numbers_to_multiply = new LongInt[numbers_on_proc];
+
+    for (int i = 0; i < numbers_on_proc; i++) {
+        numbers_to_multiply[i] = LongInt(&recv_nums[i * ints_in_type], max_len);
+    }
+
+    DEBUG_OUTPUT(
+    cout << "LONGINTS FOR " << ProcRank << " PROCESS :" << endl;
+    for (int i = 0; i < numbers_on_proc; i++)
+        cout << numbers_to_multiply[i] << endl;
+    )
+
+    free(recv_nums);
+
+
+    for (int i = 0; i < numbers_on_proc; i++) {
+        free(numbers_to_multiply[i].n);
+    }
 
     if (ProcRank == 0) {
         for (int i = 0; i < N; i++) {
             free(numbers[i].n);
         }
     }
+
+
     delete[] s;
 
     MPI_Finalize();
