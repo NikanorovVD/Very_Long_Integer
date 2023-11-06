@@ -29,11 +29,6 @@ public:
     unsigned short size;
 
 private:
-    LongInt(unsigned short s) {
-        n = (unsigned int*)calloc(s, 32);
-        size = s;
-    }
-
     void Add(uint64_t x, int pos) {
         uint64_t int_max = (uint64_t)UINT32_MAX + (uint64_t)1;
 
@@ -47,6 +42,11 @@ public:
     LongInt() {
         size = 0;
         n = nullptr;
+    }
+
+    LongInt(unsigned short s) {
+        n = (unsigned int*)calloc(s, 32);
+        size = s;
     }
 
     LongInt(unsigned int* buff, int k) {
@@ -128,6 +128,7 @@ int main(int argc, char* argv[])
 
                 max_len += numbers[i].size;
         }
+        delete[] s;
     }
 
     //Рассылка переменных
@@ -170,6 +171,12 @@ int main(int argc, char* argv[])
             }
         }
     }
+    if (ProcRank == 0) {
+        for (int i = 0; i < N; i++) {
+            free(numbers[i].n);
+        }
+    }
+
 
     MPI_Scatter(send_nums, numbers_on_proc, MPI_LONGINT_T, recv_nums, numbers_on_proc, MPI_LONGINT_T, 0, MPI_COMM_WORLD);
 
@@ -191,6 +198,7 @@ int main(int argc, char* argv[])
     for (int i = 0; i < numbers_on_proc; i++) {
         numbers_to_multiply[i] = LongInt(&recv_nums[i * ints_in_type], max_len);
     }
+    free(recv_nums);
 
     DEBUG_OUTPUT(
     cout << "LONGINTS FOR " << ProcRank << " PROCESS :" << endl;
@@ -198,22 +206,50 @@ int main(int argc, char* argv[])
         cout << numbers_to_multiply[i] << endl;
     )
 
-    free(recv_nums);
 
 
+
+    //Перемножение полученных чисел
+    LongInt prod = LongInt("1");
+    for (int i = 0; i < numbers_on_proc; i++) {
+        prod = prod * numbers_to_multiply[i];
+    }
     for (int i = 0; i < numbers_on_proc; i++) {
         free(numbers_to_multiply[i].n);
     }
+    DEBUG_OUTPUT(cout << "PART PROD FOR " << ProcRank << " PROCESS :" << endl
+        << "INT : " << prod << endl
+        << "DEC : "; print_longint(prod);)
 
+
+        //Сбор Частичных произведений
+    int buff_size = 0;
+    if (ProcRank == 0) buff_size = ints_in_type * ProcNum;
+    unsigned int* prod_buff = (unsigned int*)calloc(buff_size, sizeof(unsigned int));
+
+    MPI_Gather(prod.n, 1, MPI_LONGINT_T, prod_buff, 1, MPI_LONGINT_T, 0, MPI_COMM_WORLD);
+    free(prod.n);
+
+    DEBUG_OUTPUT(if (ProcRank == 0) {
+        cout << "GATHER RESULT : " << endl;
+        for (int i = 0; i < ints_in_type * ProcNum; i++) cout << prod_buff[i] << '\t'; cout << endl;
+    })
+
+
+    //Считаем общее произведение
+    LongInt global_prod = LongInt("1");
     if (ProcRank == 0) {
-        for (int i = 0; i < N; i++) {
-            free(numbers[i].n);
+        for (int i = 0; i < ProcNum; i++) {
+            LongInt x = LongInt(&prod_buff[i * ints_in_type], max_len);
+            global_prod = global_prod * x;
+            free(x.n);
         }
     }
 
+    free(prod_buff);
 
-    delete[] s;
-
+    if (ProcRank == 0) cout << "ANSWER =\t"; print_longint(global_prod);
+    free(global_prod.n);
     MPI_Finalize();
 }
 
