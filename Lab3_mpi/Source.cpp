@@ -2,7 +2,7 @@
 #include <string>
 #include <iostream>
 #include "mpi.h"
-#define DEBUG_OUTPUT(X) X
+#define DEBUG_OUTPUT(X) 
 
 using namespace std;
 
@@ -125,10 +125,18 @@ int main(int argc, char* argv[])
             cout << "DEC : ";
             print_longint(numbers[i]);
             cout << endl;)
-
-                max_len += numbers[i].size;
         }
         delete[] s;
+
+        for (int k = 0; k < ProcNum; k++) {
+            int len = 0;
+            for (int i = N / ProcNum * k; i < N / ProcNum * (k + 1); i++) {
+                len += numbers[i].size;
+            }
+            if (len > max_len) {
+                max_len = len;
+            }
+        }
     }
 
     //Рассылка переменных
